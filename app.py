@@ -32,6 +32,7 @@ model = YOLO(model_path)
 upload_option = st.sidebar.selectbox("选择上传类型",
                                      ("图片", "视频流", "RTSP流", "本地摄像头", "高并发推理"))
 
+
 # 处理单帧图像
 def process_frame(frame, confidence_threshold, model):
     results = model(frame)
@@ -64,6 +65,7 @@ def process_frame(frame, confidence_threshold, model):
     frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
     return frame, detections
 
+
 # 显示检测结果
 def display_results(stframe, result_text, frame, detections, width):
     # 调整帧的大小
@@ -83,6 +85,7 @@ def display_results(stframe, result_text, frame, detections, width):
     else:
         result_text.markdown("检测结果：请站远些，上半身完整进入摄像头")
 
+
 # 处理视频
 def process_video(caps, stframes, result_texts, confidence_threshold, model, frame_width):
     while any(cap.isOpened() for cap in caps):
@@ -95,12 +98,14 @@ def process_video(caps, stframes, result_texts, confidence_threshold, model, fra
     for cap in caps:
         cap.release()
 
+
 # 高并发推理相关代码
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 
 # 全局进度字典，记录分割片段
 progress_dict = {}
 progress_lock = threading.Lock()
+
 
 # 分段处理视频
 def process_video_segment(model, video_path, start_frame, num_frames):
@@ -134,6 +139,35 @@ def process_video_segment(model, video_path, start_frame, num_frames):
     cap.release()
     return start_frame, segment_frames, fps, frame_width, frame_height
 
+
+# 分段处理RTSP流
+def process_rtsp_segment(model, rtsp_url, num_frames):
+    cap = cv2.VideoCapture(rtsp_url)
+    frames_processed = 0
+    segment_frames = []
+
+    if not cap.isOpened():
+        logging.error(f"Failed to open RTSP stream: {rtsp_url}")
+        return segment_frames, 0, 0, 0
+
+    frame_width = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))
+    frame_height = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
+    fps = cap.get(cv2.CAP_PROP_FPS)
+
+    while frames_processed < num_frames:
+        ret, frame = cap.read()
+        if not ret:
+            break
+        results = model(frame)
+        for result in results:
+            result_frame = result.plot()
+            segment_frames.append(result_frame)
+        frames_processed += 1
+
+    cap.release()
+    return segment_frames, fps, frame_width, frame_height
+
+
 # 保存视频
 def save_video(output_path, all_frames, fps, frame_width, frame_height):
     fourcc = cv2.VideoWriter_fourcc(*'mp4v')
@@ -142,53 +176,65 @@ def save_video(output_path, all_frames, fps, frame_width, frame_height):
         out.write(frame)
     out.release()
 
+
 # 高并发情况下的多线程推理
-def detect(video_files, num_frames_per_segment, thread_count, output_dir, original_names):
-    for video in video_files:
-        progress_dict[video] = 0
+def detect(video_files_or_urls, num_frames_per_segment, thread_count, output_dir, original_names):
+    for item in video_files_or_urls:
+        progress_dict[item] = 0
 
     with ThreadPoolExecutor(max_workers=thread_count) as executor:
         futures = []
-        video_segments = {video: [] for video in video_files}
+        video_segments = {item: [] for item in video_files_or_urls}
 
         while True:
             all_finished = True
-            for video in video_files:
+            for item in video_files_or_urls:
                 with progress_lock:
-                    start_frame = progress_dict[video]
+                    start_frame = progress_dict[item]
 
                 if start_frame == -1:
                     continue
 
                 all_finished = False
-                future = executor.submit(process_video_segment, model, video, start_frame, num_frames_per_segment)
-                futures.append((future, video))
+                if item.startswith("rtsp://"):
+                    future = executor.submit(process_rtsp_segment, model, item, num_frames_per_segment)
+                else:
+                    future = executor.submit(process_video_segment, model, item, start_frame, num_frames_per_segment)
+                futures.append((future, item))
 
                 with progress_lock:
-                    total_frames = int(cv2.VideoCapture(video).get(cv2.CAP_PROP_FRAME_COUNT))
-                    if start_frame + num_frames_per_segment >= total_frames:
-                        progress_dict[video] = -1
+                    if item.startswith("rtsp://"):
+                        progress_dict[item] += num_frames_per_segment
                     else:
-                        progress_dict[video] += num_frames_per_segment
+                        total_frames = int(cv2.VideoCapture(item).get(cv2.CAP_PROP_FRAME_COUNT))
+                        if start_frame + num_frames_per_segment >= total_frames:
+                            progress_dict[item] = -1
+                        else:
+                            progress_dict[item] += num_frames_per_segment
 
             if all_finished:
                 break
 
-        for future, video in futures:
+        for future, item in futures:
             try:
-                start_frame, segment_frames, fps, frame_width, frame_height = future.result()
-                video_segments[video].append((start_frame, segment_frames, fps, frame_width, frame_height))
+                if item.startswith("rtsp://"):
+                    segment_frames, fps, frame_width, frame_height = future.result()
+                    video_segments[item].append((0, segment_frames, fps, frame_width, frame_height))
+                else:
+                    start_frame, segment_frames, fps, frame_width, frame_height = future.result()
+                    video_segments[item].append((start_frame, segment_frames, fps, frame_width, frame_height))
             except Exception as exc:
                 logging.error(f"Video processing generated an exception: {exc}")
 
-    for video, segments in video_segments.items():
+    for item, segments in video_segments.items():
         all_frames = []
         for start_frame, segment_frames, fps, frame_width, frame_height in sorted(segments, key=lambda x: x[0]):
             all_frames.extend(segment_frames)
-        original_name = original_names[video]
+        original_name = original_names[item]
         output_path = os.path.join(output_dir, original_name)
         save_video(output_path, all_frames, fps, frame_width, frame_height)
         logging.info(f"Saved processed video: {output_path}")
+
 
 if upload_option == "视频流":
     uploaded_files = st.file_uploader("上传视频文件，支持mp4、avi、mov、mkv", type=["mp4", "avi", "mov", "mkv"],
@@ -223,30 +269,43 @@ elif upload_option == "图片":
             display_results(stframe, result_text, frame, detections, width=video_frame_width)
 
 elif upload_option == "高并发推理":
-    uploaded_files = st.file_uploader("上传多个视频文件，支持mp4、avi、mov、mkv", type=["mp4", "avi", "mov", "mkv"],
-                                      accept_multiple_files=True)
+    concurrent_option = st.radio("选择上传类型", ("视频文件", "RTSP流"))
+    if concurrent_option == "视频文件":
+        uploaded_files = st.file_uploader("上传多个视频文件，支持mp4、avi、mov、mkv", type=["mp4", "avi", "mov", "mkv"],
+                                          accept_multiple_files=True)
+    elif concurrent_option == "RTSP流":
+        rtsp_urls = st.text_area("输入多个RTSP流地址，多个时每行一个", height=150).splitlines()
+
     core_thread_count = st.number_input("核心线程数", min_value=1, max_value=16, value=4)
     num_frames_per_segment = st.number_input("每段处理帧数", min_value=1, max_value=1000, value=100)
-    if uploaded_files:
-        start_button = st.button("开始检测")
-        if start_button:
-            output_dir = os.path.join(os.getcwd(), "high_concurrent_detect_results")
-            os.makedirs(output_dir, exist_ok=True)
-            temp_files = []
-            original_names = {}
+    start_button = st.button("开始检测")
 
+    if start_button:
+        output_dir = os.path.join(os.getcwd(), "high_concurrent_detect_results")
+        os.makedirs(output_dir, exist_ok=True)
+        temp_files = []
+        original_names = {}
+
+        if concurrent_option == "视频文件" and uploaded_files:
             for uploaded_file in uploaded_files:
                 tfile = tempfile.NamedTemporaryFile(delete=False)
                 tfile.write(uploaded_file.read())
                 temp_files.append(tfile.name)
                 original_names[tfile.name] = uploaded_file.name
+        elif concurrent_option == "RTSP流" and rtsp_urls:
+            for i, url in enumerate(rtsp_urls):
+                temp_files.append(url)
+                original_names[url] = f"rtsp_stream_{i}.mp4"
 
-            detect(temp_files, num_frames_per_segment, core_thread_count, output_dir, original_names)
+        detect(temp_files, num_frames_per_segment, core_thread_count, output_dir, original_names)
 
-            st.write("高并发推理处理完成。结果已保存到 high_concurrent_detect_results 文件夹。")
-            for video in temp_files:
-                st.write(f"处理完成的视频: {original_names[video]}")
-                st.video(os.path.join(output_dir, original_names[video]))
+        st.write("高并发推理处理完成。结果已保存到 high_concurrent_detect_results 文件夹。")
+        for item in temp_files:
+            st.write(f"处理完成的视频: {original_names[item]}")
+            if item.startswith("rtsp://"):
+                st.video(os.path.join(output_dir, original_names[item]))
+            else:
+                st.video(item)
 
 elif upload_option == "RTSP流":
     rtsp_urls = st.text_area("输入RTSP流地址，多个时每行一个", height=150).splitlines()
@@ -255,6 +314,7 @@ elif upload_option == "RTSP流":
         if start_button:
             stframes = [[st.empty(), st.empty()] for _ in rtsp_urls]
             caps = [cv2.VideoCapture(url) for url in rtsp_urls]
+
 
             def process_rtsp_stream(caps, stframes, confidence_threshold, model, frame_width):
                 while any(cap.isOpened() for cap in caps):
@@ -266,6 +326,7 @@ elif upload_option == "RTSP流":
                         display_results(stframes[i][0], stframes[i][1], frame, detections, width=frame_width)
                 for cap in caps:
                     cap.release()
+
 
             process_rtsp_stream(caps, stframes, confidence_threshold, model, video_frame_width)
 
