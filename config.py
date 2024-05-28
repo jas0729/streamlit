@@ -2,7 +2,7 @@
 
 # 定义类别颜色映射
 CATEGORY_COLORS = {
-    "boots": (68, 56, 43),  # Bear Brown
+    "boots": (255, 255, 0),  # Yellow
     "gloves": (255, 0, 0),  # Blue
     "helmet": (248, 20, 4),  # Apple Cherry
     "human": (155, 89, 182),  # Purple

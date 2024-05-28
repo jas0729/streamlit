@@ -82,7 +82,7 @@ def display_results(stframe, result_text, frame, detections, width):
     # 调整帧的大小
     frame = cv2.resize(frame, (width, int(frame.shape[0] * width / frame.shape[1])))
     # 确保将帧转换为 RGB 以便正确显示颜色
-    # frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
+    frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
 
     stframe.image(frame)
     human_count = detections["human_count"]
@@ -109,7 +109,7 @@ def process_video(caps, stframes, result_texts, confidence_threshold, model, fra
                 continue
 
             # 转换颜色空间 BGR -> RGB
-            # frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
+            frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
 
             frame, detections = process_frame(frame, confidence_threshold, model)
 
@@ -288,6 +288,10 @@ elif upload_option == "图片":
             result_text = st.empty()
 
             frame, detections = process_frame(frame, confidence_threshold, model)
+
+            # 将图像从 BGR 转换回 RGB 以便显示
+            frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
+
             display_results(stframe, result_text, frame, detections, width=video_frame_width)
 
 elif upload_option == "高并发推理":
@@ -344,9 +348,15 @@ elif upload_option == "RTSP流":
                         ret, frame = cap.read()
                         if not ret:
                             continue
+
+                        # 转换颜色空间 BGR -> RGB
+                        frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
+
                         frame, detections = process_frame(frame, confidence_threshold, model)
+
                         # 转换颜色空间 RGB -> BGR 以便显示
                         frame = cv2.cvtColor(frame, cv2.COLOR_RGB2BGR)
+
                         display_results(stframes[i][0], stframes[i][1], frame, detections, width=frame_width)
                 for cap in caps:
                     cap.release()
@@ -365,6 +375,10 @@ elif upload_option == "本地摄像头":
             ret, frame = cap.read()
             if not ret:
                 break
+
+            # 转换颜色空间 BGR -> RGB
+            frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
+
             frame, detections = process_frame(frame, confidence_threshold, model)
 
             # 转换颜色空间 RGB -> BGR 以便显示
