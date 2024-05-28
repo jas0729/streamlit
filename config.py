@@ -12,8 +12,8 @@ CATEGORY_COLORS = {
 
 # 模型路径
 MODEL_PATHS = {
-    "starnet_pruned": "weight/starnet_pruned.pt",
-    "mobilenet_pruned": "weight/mobilenetv4_pruned.pt",
+    "STYOLO-p": "weight/starnet_pruned.pt",
+    "M4YOLO-p": "weight/mobilenetv4_pruned.pt",
     "yolov8n": "weight/yolov8n.pt",
     "yolov8s": "weight/yolov8s.pt"
 }

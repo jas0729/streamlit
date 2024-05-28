@@ -19,7 +19,7 @@ st.title("安全上岗检测")
 # 在侧边栏添加导航栏选项
 st.sidebar.title("导航栏")
 confidence_threshold = st.sidebar.slider("置信度阈值", 0.0, 1.0, config.DEFAULT_CONFIDENCE_THRESHOLD)
-model_option = st.sidebar.selectbox("选择模型", ("starnet_pruned", "mobilenet_pruned", "yolov8n", "yolov8s"))
+model_option = st.sidebar.selectbox("选择模型", ("STYOLO-p", "M4YOLO-p", "yolov8n", "yolov8s"))
 video_frame_width = st.sidebar.slider("视频框宽度", 200, 800, 400)
 
 # 根据用户选择加载相应的模型
@@ -276,7 +276,7 @@ elif upload_option == "高并发推理":
     elif concurrent_option == "RTSP流":
         rtsp_urls = st.text_area("输入多个RTSP流地址，多个时每行一个", height=150).splitlines()
 
-    core_thread_count = st.number_input("核心线程数", min_value=1, max_value=16, value=4)
+    core_thread_count = st.number_input("工作线程数", min_value=1, max_value=16, value=4)
     num_frames_per_segment = st.number_input("每段处理帧数", min_value=1, max_value=1000, value=100)
     start_button = st.button("开始检测")
 
