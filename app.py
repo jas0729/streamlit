@@ -35,6 +35,13 @@ upload_option = st.sidebar.selectbox("选择上传类型",
 
 # 处理单帧图像
 def process_frame(frame, confidence_threshold, model):
+    # 检查图像是否有4个通道，并将其转换为3个通道，同时保留alpha通道
+    if frame.shape[2] == 4:
+        alpha_channel = frame[:, :, 3]
+        frame = cv2.cvtColor(frame, cv2.COLOR_BGRA2BGR)
+    else:
+        alpha_channel = None
+
     results = model(frame)
     detections = {
         "human_count": 0,
@@ -62,7 +69,12 @@ def process_frame(frame, confidence_threshold, model):
             elif class_name == "vest":
                 detections["vest_detected"] = True
 
-    frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
+    # 如果有alpha通道，将检测后的图像和alpha通道合并
+    if alpha_channel is not None:
+        frame = cv2.cvtColor(frame, cv2.COLOR_BGR2BGRA)
+        frame[:, :, 3] = alpha_channel
+
+    frame = cv2.cvtColor(frame, cv2.COLOR_BGRA2RGBA)
     return frame, detections
 
 
