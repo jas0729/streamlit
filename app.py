@@ -125,6 +125,27 @@ def process_video(caps, stframes, result_texts, confidence_threshold, model, fra
         cap.release()
 
 
+# 处理 RTSP 流
+def process_rtsp_stream(caps, stframes, confidence_threshold, model, frame_width):
+                while any(cap.isOpened() for cap in caps):
+                    for i, cap in enumerate(caps):
+                        ret, frame = cap.read()
+                        if not ret:
+                            continue
+
+                        # 转换颜色空间 BGR -> RGB
+                        frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
+
+                        frame, detections = process_frame(frame, confidence_threshold, model)
+
+                        # 转换颜色空间 RGB -> BGR 以便显示
+                        frame = cv2.cvtColor(frame, cv2.COLOR_RGB2BGR)
+
+                        display_results(stframes[i][0], stframes[i][1], frame, detections, width=frame_width)
+                for cap in caps:
+                    cap.release()
+
+
 # 高并发推理相关代码
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 
@@ -345,28 +366,6 @@ elif upload_option == "RTSP流":
         if start_button:
             stframes = [[st.empty(), st.empty()] for _ in rtsp_urls]
             caps = [cv2.VideoCapture(url) for url in rtsp_urls]
-
-
-            def process_rtsp_stream(caps, stframes, confidence_threshold, model, frame_width):
-                while any(cap.isOpened() for cap in caps):
-                    for i, cap in enumerate(caps):
-                        ret, frame = cap.read()
-                        if not ret:
-                            continue
-
-                        # 转换颜色空间 BGR -> RGB
-                        frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
-
-                        frame, detections = process_frame(frame, confidence_threshold, model)
-
-                        # 转换颜色空间 RGB -> BGR 以便显示
-                        frame = cv2.cvtColor(frame, cv2.COLOR_RGB2BGR)
-
-                        display_results(stframes[i][0], stframes[i][1], frame, detections, width=frame_width)
-                for cap in caps:
-                    cap.release()
-
-
             process_rtsp_stream(caps, stframes, confidence_threshold, model, video_frame_width)
 
 elif upload_option == "本地摄像头":
