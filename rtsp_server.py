@@ -43,9 +43,9 @@ class RTSPServer:
 if __name__ == '__main__':
     # 字典，键为挂载点，值为文件路径
     streams = {
-        "/stream1": "video1.mp4",
-        "/stream2": "video2.mp4",
-        "/stream3": "video3.mp4"
+        "/stream1": "videos/video1.mp4",
+        "/stream2": "videos/video2.mp4",
+        "/stream3": "videos/video3.mp4"
     }
 
     # 创建RTSP服务器实例并运行事件循环
