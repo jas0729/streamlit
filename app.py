@@ -42,6 +42,7 @@ def process_frame(frame, confidence_threshold, model):
     else:
         alpha_channel = None
 
+    # 使用模型进行检测
     results = model(frame)
     detections = {
         "human_count": 0,
@@ -49,6 +50,7 @@ def process_frame(frame, confidence_threshold, model):
         "vest_detected": False
     }
 
+    # 解析检测结果
     for result in results:
         for box in result.boxes:
             if box.conf[0] < confidence_threshold:
@@ -62,6 +64,7 @@ def process_frame(frame, confidence_threshold, model):
             label = f"{class_name} {confidence:.2f}"
             cv2.putText(frame, label, (x1, y1 - 10), cv2.FONT_HERSHEY_SIMPLEX, 0.5, color, 2)
 
+            # 统计检测到的对象类型
             if class_name == "human":
                 detections["human_count"] += 1
             elif class_name == "helmet":
@@ -89,6 +92,7 @@ def display_results(stframe, result_text, frame, detections, width):
     helmet_detected = detections["helmet_detected"]
     vest_detected = detections["vest_detected"]
 
+    # 根据检测结果显示文本
     if human_count == 1:
         if helmet_detected and vest_detected:
             result_text.markdown("检测结果：**Pass**")
@@ -131,10 +135,10 @@ progress_lock = threading.Lock()
 
 # 分段处理视频
 def process_video_segment(model, video_path, start_frame, num_frames):
-    thread_name = threading.current_thread().name
-    cap = cv2.VideoCapture(video_path)
-    cap.set(cv2.CAP_PROP_POS_FRAMES, start_frame)
-    frames_processed = 0
+    thread_name = threading.current_thread().name  # 获取当前线程的名称
+    cap = cv2.VideoCapture(video_path)  # 打开视频文件
+    cap.set(cv2.CAP_PROP_POS_FRAMES, start_frame)  # 设置视频帧的位置
+    frames_processed = 0# 记录处理的帧数
 
     frame_width = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))
     frame_height = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
@@ -144,7 +148,7 @@ def process_video_segment(model, video_path, start_frame, num_frames):
 
     logging.info(
         f'Thread {thread_name} - Start processing: {video_path} from frame {start_frame} to {start_frame + num_frames}')
-
+    # 读取视频帧
     while cap.isOpened() and frames_processed < num_frames:
         ret, frame = cap.read()
         if not ret:
@@ -203,7 +207,7 @@ def save_video(output_path, all_frames, fps, frame_width, frame_height):
 def detect(video_files_or_urls, num_frames_per_segment, thread_count, output_dir, original_names):
     for item in video_files_or_urls:
         progress_dict[item] = 0
-
+    # 使用线程池进行多线程推理
     with ThreadPoolExecutor(max_workers=thread_count) as executor:
         futures = []
         video_segments = {item: [] for item in video_files_or_urls}
@@ -223,7 +227,8 @@ def detect(video_files_or_urls, num_frames_per_segment, thread_count, output_dir
                 else:
                     future = executor.submit(process_video_segment, model, item, start_frame, num_frames_per_segment)
                 futures.append((future, item))
-
+                
+                # 更新进度
                 with progress_lock:
                     if item.startswith("rtsp://"):
                         progress_dict[item] += num_frames_per_segment
@@ -236,7 +241,7 @@ def detect(video_files_or_urls, num_frames_per_segment, thread_count, output_dir
 
             if all_finished:
                 break
-
+        # 等待所有线程完成        
         for future, item in futures:
             try:
                 if item.startswith("rtsp://"):
@@ -247,7 +252,7 @@ def detect(video_files_or_urls, num_frames_per_segment, thread_count, output_dir
                     video_segments[item].append((start_frame, segment_frames, fps, frame_width, frame_height))
             except Exception as exc:
                 logging.error(f"Video processing generated an exception: {exc}")
-
+    # 保存处理后的视频片段
     for item, segments in video_segments.items():
         all_frames = []
         for start_frame, segment_frames, fps, frame_width, frame_height in sorted(segments, key=lambda x: x[0]):
