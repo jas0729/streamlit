@@ -9,12 +9,6 @@ pip install -r requirements.txt -I https://pypi.tuna.tsinghua.edu.cn/simple
 ```sh
 -I https://pypi.tuna.tsinghua.edu.cn/simple
 ```
-接下来，安装 mim 包：
-```sh
-pip install -U openmim
-mim install mmengine -I https://pypi.tuna.tsinghua.edu.cn/simple
-mim install "mmcv>=2.0.0" -I https://pypi.tuna.tsinghua.edu.cn/simple
-```
 
 # v1.0
 整合了图片、视频流、RTSP流、本地摄像头、高并发推理等推理方式
