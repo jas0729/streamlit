@@ -13,7 +13,7 @@ pip install -r requirements.txt -I https://pypi.tuna.tsinghua.edu.cn/simple
 # v1.0
 整合了图片、视频流、RTSP流、本地摄像头、高并发推理等推理方式
 
-可以选择已经训练好的模型，目前有"starnet_pruned", "mobilenet_pruned", "yolov8n", "yolov8s"可选
+可以选择已经训练好的模型，目前有"STYOLO-p", "M4YOLO-p", "yolov8n", "yolov8s"可选
 
 可以选择置信度阈值，自动过滤较低置信度的识别物，减小误差
 
