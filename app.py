@@ -159,59 +159,71 @@ def process_video_segment(model, video_path, start_frame, num_frames):
     thread_name = threading.current_thread().name  # 获取当前线程的名称
     cap = cv2.VideoCapture(video_path)  # 打开视频文件
     cap.set(cv2.CAP_PROP_POS_FRAMES, start_frame)  # 设置视频帧的位置
-    frames_processed = 0# 记录处理的帧数
+    frames_processed = 0  # 初始化处理的帧数为0
 
+    # 获取视频的宽度、高度和帧率
     frame_width = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))
     frame_height = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
     fps = cap.get(cv2.CAP_PROP_FPS)
 
+    # 初始化一个列表，用于存储处理后的帧
     segment_frames = []
 
+    # 记录开始处理的日志
     logging.info(
         f'Thread {thread_name} - Start processing: {video_path} from frame {start_frame} to {start_frame + num_frames}')
-    # 读取视频帧
-    while cap.isOpened() and frames_processed < num_frames:
-        ret, frame = cap.read()
-        if not ret:
-            break
-        results = model(frame)
-        for result in results:
-            result_frame = result.plot()
-            segment_frames.append(result_frame)
-        frames_processed += 1
 
+    # 循环，直到视频结束或者处理的帧数达到指定的数量
+    while cap.isOpened() and frames_processed < num_frames:
+        ret, frame = cap.read()  # 读取一帧视频
+        if not ret:  # 如果读取失败，跳出循环
+            break
+        results = model(frame)  # 使用模型处理这一帧
+        for result in results:  # 对于处理结果中的每一项
+            result_frame = result.plot()  # 绘制结果
+            segment_frames.append(result_frame)  # 将处理后的帧添加到列表中
+        frames_processed += 1  # 处理的帧数加1
+
+    # 记录结束处理的日志
     logging.info(
         f'Thread {thread_name} - Finished processing: {video_path} from frame {start_frame} to {start_frame + num_frames}')
 
-    cap.release()
+    cap.release()  # 释放视频文件
+    # 返回处理的开始帧、处理后的帧、帧率、宽度和高度
     return start_frame, segment_frames, fps, frame_width, frame_height
 
 
 # 分段处理RTSP流
 def process_rtsp_segment(model, rtsp_url, num_frames):
-    cap = cv2.VideoCapture(rtsp_url)
-    frames_processed = 0
+    cap = cv2.VideoCapture(rtsp_url)  # 打开RTSP流
+    frames_processed = 0  # 初始化处理的帧数为0
+
+    # 初始化一个列表，用于存储处理后的帧
     segment_frames = []
 
+    # 如果无法打开RTSP流，记录错误日志，并返回空的处理结果
     if not cap.isOpened():
         logging.error(f"Failed to open RTSP stream: {rtsp_url}")
         return segment_frames, 0, 0, 0
 
+    # 获取视频的宽度、高度和帧率
     frame_width = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))
     frame_height = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
     fps = cap.get(cv2.CAP_PROP_FPS)
 
+    # 循环，直到处理的帧数达到指定的数量
     while frames_processed < num_frames:
-        ret, frame = cap.read()
-        if not ret:
+        ret, frame = cap.read()  # 读取一帧视频
+        if not ret:  # 如果读取失败，跳出循环
             break
-        results = model(frame)
-        for result in results:
-            result_frame = result.plot()
-            segment_frames.append(result_frame)
-        frames_processed += 1
+        results = model(frame)  # 使用模型处理这一帧
+        for result in results:  # 对于处理结果中的每一项
+            result_frame = result.plot()  # 绘制结果
+            segment_frames.append(result_frame)  # 将处理后的帧添加到列表中
+        frames_processed += 1  # 处理的帧数加1
 
-    cap.release()
+    cap.release()  # 释放RTSP流
+    # 返回处理后的帧、帧率、宽度和高度
     return segment_frames, fps, frame_width, frame_height
 
 
@@ -226,45 +238,62 @@ def save_video(output_path, all_frames, fps, frame_width, frame_height):
 
 # 高并发情况下的多线程推理
 def detect(video_files_or_urls, num_frames_per_segment, thread_count, output_dir, original_names):
+    # 初始化每个视频文件或URL的处理进度为0
     for item in video_files_or_urls:
         progress_dict[item] = 0
-    # 使用线程池进行多线程推理
+    # 创建一个线程池，用于并发处理视频文件或URL
     with ThreadPoolExecutor(max_workers=thread_count) as executor:
+        # 初始化一个列表，用于存储每个视频文件或URL的处理任务
         futures = []
+        # 初始化一个字典，用于存储每个视频文件或URL的处理结果
         video_segments = {item: [] for item in video_files_or_urls}
 
+        # 循环，直到所有的视频文件或URL都处理完毕
         while True:
+            # 假设所有的视频文件或URL都已经处理完毕
             all_finished = True
+            # 对于每个视频文件或URL
             for item in video_files_or_urls:
+                # 获取当前的处理进度
                 with progress_lock:
                     start_frame = progress_dict[item]
 
+                # 如果当前的处理进度为-1，表示该视频文件或URL已经处理完毕，跳过
                 if start_frame == -1:
                     continue
 
+                # 如果有未处理完的视频文件或URL，设置all_finished为False
                 all_finished = False
+                # 如果是RTSP流，使用process_rtsp_segment函数处理
                 if item.startswith("rtsp://"):
                     future = executor.submit(process_rtsp_segment, model, item, num_frames_per_segment)
                 else:
+                    # 如果是视频文件，使用process_video_segment函数处理
                     future = executor.submit(process_video_segment, model, item, start_frame, num_frames_per_segment)
+                # 将处理任务添加到futures列表中
                 futures.append((future, item))
                 
-                # 更新进度
+                # 更新处理进度
                 with progress_lock:
                     if item.startswith("rtsp://"):
                         progress_dict[item] += num_frames_per_segment
                     else:
+                        # 获取视频文件的总帧数
                         total_frames = int(cv2.VideoCapture(item).get(cv2.CAP_PROP_FRAME_COUNT))
+                        # 如果剩余的帧数少于num_frames_per_segment，设置处理进度为-1，表示该视频文件已经处理完毕
                         if start_frame + num_frames_per_segment >= total_frames:
                             progress_dict[item] = -1
                         else:
+                            # 否则，增加处理进度
                             progress_dict[item] += num_frames_per_segment
 
+            # 如果所有的视频文件或URL都已经处理完毕，退出循环
             if all_finished:
                 break
-        # 等待所有线程完成        
+        # 等待所有的处理任务完成        
         for future, item in futures:
             try:
+                # 获取处理结果，并添加到video_segments字典中
                 if item.startswith("rtsp://"):
                     segment_frames, fps, frame_width, frame_height = future.result()
                     video_segments[item].append((0, segment_frames, fps, frame_width, frame_height))
@@ -272,8 +301,9 @@ def detect(video_files_or_urls, num_frames_per_segment, thread_count, output_dir
                     start_frame, segment_frames, fps, frame_width, frame_height = future.result()
                     video_segments[item].append((start_frame, segment_frames, fps, frame_width, frame_height))
             except Exception as exc:
+                # 如果处理过程中发生异常，记录异常信息
                 logging.error(f"Video processing generated an exception: {exc}")
-    # 保存处理后的视频片段
+    # 对于每个视频文件或URL，将处理后的视频片段保存到文件中
     for item, segments in video_segments.items():
         all_frames = []
         for start_frame, segment_frames, fps, frame_width, frame_height in sorted(segments, key=lambda x: x[0]):
