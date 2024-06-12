@@ -30,6 +30,7 @@ pip install -r requirements.txt -I https://pypi.tuna.tsinghua.edu.cn/simple
 
 现在可以愉快地进行各种格式的图片检测了！ ^_^
 
+changed branch name to 'main'
 
 # 已知bug：
 
