@@ -34,7 +34,9 @@ changed branch name to 'main'
 
 # 模型说明：
 ![alt text](<截屏2024-06-19 00.11.01.png>)
+
 毕设题目是 低成本YOLO目标检测算法研究与实现
+
 数据集：https://universe.roboflow.com/huiyao-hu-sj18e/construction-ppe-detection
 
 # 已知bug：
